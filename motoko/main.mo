@@ -9,6 +9,7 @@ import Iter "mo:core/Iter";
 import Result "mo:core/Result";
 import Runtime "mo:core/Runtime";
 import Admin "mo:thebes-lib/Admin";
+import Invoices "mo:thebes-lib/Invoices";
 
 persistent actor Restaurant {
 
@@ -63,6 +64,8 @@ persistent actor Restaurant {
   // Persistent state
   var menuItems : Map.Map<Nat, MenuItem> = Map.empty<Nat, MenuItem>();
   var orders : Map.Map<Nat, Order> = Map.empty<Nat, Order>();
+  // Each placed order issues an invoice via the shared thebes-lib module.
+  let invoices = Invoices.init();
 
   // Kitchen actions are gated on the admin tier (owner or staff); customers
   // never advance the kitchen-side lifecycle.
@@ -210,6 +213,20 @@ persistent actor Restaurant {
     };
 
     Map.add(orders, Nat.compare, orderId, order);
+
+    // Issue an invoice for the order (owner → customer) from its line items.
+    let seller = switch (Admin.getOwner(admin)) { case (?o) o; case null caller };
+    let lineItems = Array.map<OrderItem, Invoices.LineItem>(
+      items,
+      func(it) {
+        switch (Map.get(menuItems, Nat.compare, it.menuItemId)) {
+          case (?m) { { description = m.name; quantity = it.quantity; unitPriceE8s = m.priceE8s } };
+          case null { { description = "item"; quantity = it.quantity; unitPriceE8s = 0 } };
+        };
+      },
+    );
+    ignore Invoices.createIssued(invoices, Time.now(), seller, caller, lineItems, 0);
+
     #ok(orderId);
   };
 
@@ -333,6 +350,14 @@ persistent actor Restaurant {
     let sorted = Array.sort(mine, func(a : Order, b : Order) : { #less; #equal; #greater } { Int.compare(b.timestamp, a.timestamp) });
     Array.map<Order, { id : Nat; status : Text; totalAmount : Nat; itemCount : Nat; timestamp : Int }>(
       sorted, func(o) { { id = o.id; status = statusText(o.status); totalAmount = o.totalAmount; itemCount = o.items.size(); timestamp = o.timestamp } },
+    )
+  };
+
+  // Invoices issued to the caller (one per order), flat view for the frontend.
+  public shared query(msg) func myInvoicesView() : async [{ id : Nat; totalE8s : Nat; status : Text; itemCount : Nat; createdAt : Int }] {
+    Array.map<Invoices.Invoice, { id : Nat; totalE8s : Nat; status : Text; itemCount : Nat; createdAt : Int }>(
+      Invoices.forPrincipal(invoices, msg.caller),
+      func(i) { { id = i.id; totalE8s = i.totalE8s; status = Invoices.statusText(i.status); itemCount = i.lineItems.size(); createdAt = i.createdAt } },
     )
   };
 
