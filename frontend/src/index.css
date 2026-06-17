@@ -1,0 +1,42 @@
+@import 'tailwindcss';
+/* Fraunces — a characterful optical serif (menu/editorial feel), distinct from
+   the sans faces of the other examples. Bundled. */
+@import '@fontsource-variable/fraunces';
+
+/* ── Mesa (restaurant + ordering) design tokens ──
+   An appetizing, editorial menu — distinct from every other example AND from the
+   cream+serif+terracotta AI cluster: a BRIGHT warm-white (not dim cream), an
+   espresso ink, and a vivid CHILI red (not earthy terracotta) reserved for the
+   order CTA + price. The Fraunces display gives it a hand-set menu character;
+   dish photography carries the page. */
+@theme {
+  --color-accent: #d7263d;  /* Memphis sign-in accent (alias of primary) */
+  --color-ink: #221813;        /* espresso ink */
+  --color-ink-soft: #6f6157;   /* secondary */
+  --color-paper: #fdfcfa;      /* bright warm-white (not cream) */
+  --color-surface: #ffffff;    /* cards */
+  --color-line: #ece6df;       /* hairlines */
+  --color-chili: #d7263d;      /* CTA + price (vivid red, not terracotta) */
+  --color-chili-ink: #a01228;
+  --color-off: #9a8f85;        /* unavailable */
+
+  --font-display: 'Fraunces Variable', ui-serif, Georgia, serif;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+html, body, #root { height: 100%; }
+body { margin: 0; background: var(--color-paper); color: var(--color-ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; }
+.font-display { font-family: var(--font-display); letter-spacing: -0.01em; }
+.nums { font-variant-numeric: tabular-nums; }
+.card { background: var(--color-surface); border: 1px solid var(--color-line); border-radius: 16px; }
+
+/* Price — chili, tabular, confident (the value accent). */
+.price { font-family: var(--font-display); font-variant-numeric: tabular-nums; font-weight: 600; color: var(--color-chili); }
+
+.media { background: var(--color-line); overflow: hidden; }
+.media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.media img[data-loaded='false'] { filter: blur(10px); transform: scale(1.04); }
+.media img { transition: filter .35s ease, transform .35s ease; }
+
+:focus-visible { outline: 2px solid var(--color-chili); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }

@@ -1,0 +1,21 @@
+import { Routes, Route } from 'react-router-dom'
+import { MemphisGate } from '@thebes/sdk'
+import { Layout } from './components/Layout'
+import { Menu } from './pages/Menu'
+import { MyOrders } from './pages/MyOrders'
+import { Kitchen } from './pages/Kitchen'
+
+export function App() {
+  return (
+    <MemphisGate appName="Mesa" tagline="Sign in to order.">
+      <Routes>
+      <Route element={<Layout />}>
+        <Route path="/" element={<Menu />} />
+        <Route path="/orders" element={<MyOrders />} />
+        <Route path="/kitchen" element={<Kitchen />} />
+        <Route path="*" element={<Menu />} />
+      </Route>
+    </Routes>
+    </MemphisGate>
+  )
+}
