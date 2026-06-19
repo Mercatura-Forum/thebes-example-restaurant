@@ -1,5 +1,5 @@
 import { Routes, Route } from 'react-router-dom'
-import { MemphisGate } from '@thebes/sdk'
+import { MemphisGate } from './components/MemphisGate'
 import { Layout } from './components/Layout'
 import { Menu } from './pages/Menu'
 import { MyOrders } from './pages/MyOrders'
