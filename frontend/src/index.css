@@ -88,6 +88,43 @@ body { margin: 0; background: var(--color-paper); color: var(--color-ink); font-
 }
 .inp:focus { border-color: var(--color-chili); }
 
+/* The floor PLAN: a fixed grid the kitchen arranges. Dotted in edit mode. */
+.floor-plan {
+  position: relative;
+  border-radius: 24px;
+  border: 1px solid var(--color-line);
+  background:
+    radial-gradient(120% 100% at 50% 0%, rgba(215, 38, 61, 0.035), transparent 60%),
+    repeating-linear-gradient(90deg, rgba(111, 97, 87, 0.05) 0 2px, transparent 2px 64px),
+    var(--color-surface);
+  overflow: visible;
+}
+.floor-plan.editing {
+  background-image:
+    radial-gradient(rgba(111, 97, 87, 0.22) 1.5px, transparent 1.5px);
+  background-size: calc(100% / 12) calc(100% / 8);
+  background-position: 0 0;
+  background-color: var(--color-surface);
+  cursor: grabbing;
+}
+.table-spot.placed { position: absolute; animation: none; }
+.table-spot.editing { cursor: grab; touch-action: none; }
+.ghost-cell {
+  position: absolute;
+  border: 2px dashed var(--color-chili);
+  border-radius: 14px;
+  background: rgba(215, 38, 61, 0.06);
+  pointer-events: none;
+}
+.shelve {
+  position: absolute; top: -10px; right: -10px;
+  display: grid; place-items: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--color-surface); border: 1px solid var(--color-line);
+  color: var(--color-ink-soft); font-size: 11px; cursor: pointer;
+}
+.shelve:hover { color: var(--color-chili); border-color: var(--color-chili); }
+
 @keyframes rise-in { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 .rise { animation: rise-in .5s cubic-bezier(.2,.8,.2,1) both; }
 .table-spot { animation: rise-in .45s cubic-bezier(.2,.8,.2,1) both; }

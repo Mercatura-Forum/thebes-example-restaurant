@@ -11,6 +11,7 @@ import Result "mo:core/Result";
 import Runtime "mo:core/Runtime";
 import Admin "mo:thebes-lib/Admin";
 import Invoices "mo:thebes-lib/Invoices";
+import Migration "Migration";
 
 // A restaurant that cannot double-book a table.
 //
@@ -24,6 +25,8 @@ import Invoices "mo:thebes-lib/Invoices";
 //     zero overlapping non-cancelled reservations per table
 //     every seating references a real table, party ≤ seats
 // An empty report is the proof that the floor can never be double-allocated.
+// Tables gain floor-plan positions in this version (see Migration.mo).
+(with migration = Migration.run)
 persistent actor Restaurant {
 
   // Standard admin surface (lib/Admin). The restaurant operator claims
@@ -74,10 +77,26 @@ persistent actor Restaurant {
   };
 
   // ── The floor ──
+  // The floor plan is a fixed grid; a table's footprint depends on its size.
+  // posX/posY are 1-based grid cells; 0/0 = unplaced (the shelf — the UI
+  // auto-flows those exactly as before the editor existed).
+  let GRID_W : Nat = 12;
+  let GRID_H : Nat = 8;
+
   type DiningTable = {
     number : Nat; // the number painted on the table — the identity
     seats : Nat;
     retired : Bool; // retired tables keep history but take no allocations
+    posX : Nat;
+    posY : Nat;
+  };
+
+  // Footprint in grid cells, by table size (matches the drawn shapes).
+  func footprint(seats : Nat) : (Nat, Nat) {
+    if (seats <= 4) (2, 2) else if (seats <= 6) (3, 2) else (4, 2);
+  };
+  func rectsOverlap(ax : Nat, ay : Nat, aw : Nat, ah : Nat, bx : Nat, by_ : Nat, bw : Nat, bh : Nat) : Bool {
+    ax < bx + bw and bx < ax + aw and ay < by_ + bh and by_ < ay + ah;
   };
 
   type ReservationStatus = { #booked; #seated; #completed; #cancelled; #noshow };
@@ -172,7 +191,7 @@ persistent actor Restaurant {
       case (?t) { if (not t.retired) Runtime.trap("Table " # Nat.toText(number) # " already exists.") };
       case null {};
     };
-    Map.add(tables, Nat.compare, number, { number; seats; retired = false });
+    Map.add(tables, Nat.compare, number, { number; seats; retired = false; posX = 0; posY = 0 });
     logFloor("table.add", "table " # Nat.toText(number) # " (" # Nat.toText(seats) # " seats) joins the floor", number, 0);
   };
 
@@ -181,6 +200,7 @@ persistent actor Restaurant {
     if (not isKitchen(msg.caller)) Runtime.trap("Not authorized");
     if (seats == 0 or seats > 20) Runtime.trap("Seats must be 1–20.");
     let t = getDiningTable(number);
+    if (t.posX > 0) requirePlacementFree(number, t.posX, t.posY, seats);
     Map.add(tables, Nat.compare, number, { t with seats });
     logFloor("table.resize", "table " # Nat.toText(number) # " now seats " # Nat.toText(seats), number, 0);
   };
@@ -198,6 +218,39 @@ persistent actor Restaurant {
     };
     Map.add(tables, Nat.compare, number, { t with retired = true });
     logFloor("table.retire", "table " # Nat.toText(number) # " leaves the floor", number, 0);
+  };
+
+  // Placement guard: the footprint must sit inside the grid and overlap no
+  // other placed, unretired table. `skip` is the table being (re)placed.
+  func requirePlacementFree(skip : Nat, x : Nat, y : Nat, seats : Nat) {
+    let (w, h) = footprint(seats);
+    if (x == 0 or y == 0) Runtime.trap("Grid cells start at 1.");
+    if (x + w - 1 > GRID_W or y + h - 1 > GRID_H) Runtime.trap("That spot falls off the floor.");
+    for ((_, o) in Map.entries(tables)) {
+      if (o.number != skip and not o.retired and o.posX > 0) {
+        let (ow, oh) = footprint(o.seats);
+        if (rectsOverlap(x, y, w, h, o.posX, o.posY, ow, oh)) {
+          Runtime.trap("That spot overlaps table " # Nat.toText(o.number) # ".");
+        };
+      };
+    };
+  };
+
+  /// Arrange the floor: put a table at a grid cell (kitchen only). x=0,y=0
+  /// sends it back to the shelf (auto-flow). The no-overlap guard is the same
+  /// law the oracle audits.
+  public shared(msg) func setTablePosition(number : Nat, x : Nat, y : Nat) : async () {
+    Admin.requireNotPaused(admin);
+    if (not isKitchen(msg.caller)) Runtime.trap("Not authorized");
+    let t = getDiningTable(number);
+    if (x == 0 and y == 0) {
+      Map.add(tables, Nat.compare, number, { t with posX = 0; posY = 0 });
+      logFloor("table.unplace", "table " # Nat.toText(number) # " goes back to the shelf", number, 0);
+      return;
+    };
+    requirePlacementFree(number, x, y, t.seats);
+    Map.add(tables, Nat.compare, number, { t with posX = x; posY = y });
+    logFloor("table.place", "table " # Nat.toText(number) # " set at " # Nat.toText(x) # "," # Nat.toText(y), number, 0);
   };
 
   // ── Reservations (customers book; the guard does the arithmetic) ─────────
@@ -573,12 +626,12 @@ persistent actor Restaurant {
     ignore addMenuItemRaw("Tiramisu", 700000000, null);
     ignore addMenuItemRaw("Sparkling Water", 350000000, null);
     if (Map.size(tables) == 0) {
-      Map.add(tables, Nat.compare, 1, { number = 1; seats = 2; retired = false });
-      Map.add(tables, Nat.compare, 2, { number = 2; seats = 2; retired = false });
-      Map.add(tables, Nat.compare, 3, { number = 3; seats = 4; retired = false });
-      Map.add(tables, Nat.compare, 4, { number = 4; seats = 4; retired = false });
-      Map.add(tables, Nat.compare, 5, { number = 5; seats = 6; retired = false });
-      Map.add(tables, Nat.compare, 6, { number = 6; seats = 8; retired = false });
+      Map.add(tables, Nat.compare, 1, { number = 1; seats = 2; retired = false; posX = 0; posY = 0 });
+      Map.add(tables, Nat.compare, 2, { number = 2; seats = 2; retired = false; posX = 0; posY = 0 });
+      Map.add(tables, Nat.compare, 3, { number = 3; seats = 4; retired = false; posX = 0; posY = 0 });
+      Map.add(tables, Nat.compare, 4, { number = 4; seats = 4; retired = false; posX = 0; posY = 0 });
+      Map.add(tables, Nat.compare, 5, { number = 5; seats = 6; retired = false; posX = 0; posY = 0 });
+      Map.add(tables, Nat.compare, 6, { number = 6; seats = 8; retired = false; posX = 0; posY = 0 });
       logFloor("seed.floor", "six tables join the floor", 0, 0);
     };
     true;
@@ -617,6 +670,24 @@ persistent actor Restaurant {
         j += 1;
       };
       i += 1;
+    };
+    // (c') no two placed tables overlap on the floor plan
+    let tArr = Iter.toArray(Map.values(tables));
+    var ti = 0;
+    while (ti < tArr.size()) {
+      var tj = ti + 1;
+      while (tj < tArr.size()) {
+        let a = tArr[ti]; let b = tArr[tj];
+        if (not a.retired and not b.retired and a.posX > 0 and b.posX > 0) {
+          let (aw, ah) = footprint(a.seats);
+          let (bw, bh) = footprint(b.seats);
+          if (rectsOverlap(a.posX, a.posY, aw, ah, b.posX, b.posY, bw, bh)) {
+            List.add(bad, { rule = "floor-overlap"; tableNumber = a.number; detail = "tables " # Nat.toText(a.number) # " and " # Nat.toText(b.number) # " occupy the same cells" });
+          };
+        };
+        tj += 1;
+      };
+      ti += 1;
     };
     // (c) every live allocation references a real, unretired table; party fits
     for ((_, r) in Map.entries(reservations)) {
@@ -684,7 +755,7 @@ persistent actor Restaurant {
     number : Nat; seats : Nat; status : Text;
     orderId : Nat; orderStatus : Text; orderTotalE8s : Nat; orderIsMine : Bool;
     guestName : Text; reservationId : Nat; partySize : Nat; resStart : Int; resEnd : Int; resSeated : Bool;
-    nextResAt : Int; nowNs : Int;
+    nextResAt : Int; nowNs : Int; posX : Nat; posY : Nat; gridW : Nat; gridH : Nat;
   }] {
     let now = Time.now();
     let live = Array.filter<(Nat, DiningTable)>(Map.toArray(tables), func((_, t)) { not t.retired });
@@ -692,7 +763,7 @@ persistent actor Restaurant {
       number : Nat; seats : Nat; status : Text;
       orderId : Nat; orderStatus : Text; orderTotalE8s : Nat; orderIsMine : Bool;
       guestName : Text; reservationId : Nat; partySize : Nat; resStart : Int; resEnd : Int; resSeated : Bool;
-      nextResAt : Int; nowNs : Int;
+      nextResAt : Int; nowNs : Int; posX : Nat; posY : Nat; gridW : Nat; gridH : Nat;
     }>(live, func((_, t)) {
       let ord = activeOrderAt(t.number);
       let res = coveringReservation(t.number, now);
@@ -721,6 +792,7 @@ persistent actor Restaurant {
         resEnd = (switch (res) { case (?r) r.endNs; case null 0 });
         resSeated = (switch (res) { case (?r) r.status == #seated; case null false });
         nextResAt = nextAt; nowNs = now;
+        posX = t.posX; posY = t.posY; gridW = GRID_W; gridH = GRID_H;
       };
     });
   };

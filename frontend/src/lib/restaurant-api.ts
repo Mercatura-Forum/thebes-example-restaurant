@@ -36,6 +36,10 @@ export interface FloorTable {
   resSeated: boolean
   nextResAt: bigint // 0 = none
   nowNs: bigint
+  posX: bigint // 1-based grid cell; 0 = unplaced (auto-flow shelf)
+  posY: bigint
+  gridW: bigint
+  gridH: bigint
 }
 export interface ReservationRow {
   id: bigint
@@ -67,7 +71,7 @@ const FLOOR_FIELDS = [
   nat('number'), nat('seats'), text('status'),
   nat('orderId'), text('orderStatus'), nat('orderTotalE8s'), bool('orderIsMine'),
   text('guestName'), nat('reservationId'), nat('partySize'), int('resStart'), int('resEnd'), bool('resSeated'),
-  int('nextResAt'), int('nowNs'),
+  int('nextResAt'), int('nowNs'), nat('posX'), nat('posY'), nat('gridW'), nat('gridH'),
 ]
 const MY_RES_FIELDS = [nat('id'), nat('tableNumber'), nat('partySize'), int('startNs'), int('endNs'), text('status'), int('nowNs')]
 const BOOK_FIELDS = [nat('id'), text('guestName'), nat('tableNumber'), nat('partySize'), int('startNs'), int('endNs'), text('status'), int('nowNs')]
@@ -141,6 +145,10 @@ export const setTableSeats = (number: bigint, seats: number) =>
   update(RESTAURANT_CID, 'setTableSeats', encodeArgs([{ type: 'nat', value: number }, { type: 'nat', value: BigInt(seats) }]))
 export const retireTable = (number: bigint) =>
   update(RESTAURANT_CID, 'retireTable', encodeArg({ type: 'nat', value: number }))
+export const setTablePosition = (number: bigint, x: number, y: number) =>
+  update(RESTAURANT_CID, 'setTablePosition', encodeArgs([
+    { type: 'nat', value: number }, { type: 'nat', value: BigInt(x) }, { type: 'nat', value: BigInt(y) },
+  ]))
 export const moveOrderToTable = (orderId: bigint, tableNumber: number) =>
   update(RESTAURANT_CID, 'moveOrderToTable', encodeArgs([{ type: 'nat', value: orderId }, { type: 'nat', value: BigInt(tableNumber) }]))
 
