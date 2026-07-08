@@ -73,6 +73,12 @@ mops install           # resolves the vendored thebes-lib + the pinned compiler
 validators pre-filled — run `thebes-deploy init` to refresh them with the
 endpoints the CLI prints for the live cluster.
 
+> **Deploying your own copy?** The committed `cid` values pin the **live catalog
+> deployment** (that's what the demo links serve — only its controller can
+> upgrade it). Before your first deploy, set `cid = "auto"` on each canister:
+> the deploy allocates fresh canisters you control and writes their ids back
+> into the manifest.
+
 ### 1. Backend
 
 ```sh
