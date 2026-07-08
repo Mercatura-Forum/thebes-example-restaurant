@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@thebes/sdk'
 import { RESTAURANT_CID, M, decodeMenu, placeOrder, type MenuItem } from '../lib/restaurant-api'
 import { fmtE8s } from '../lib/config'
@@ -8,6 +8,9 @@ import { Price, Button, Spinner, EmptyState, ErrorNote } from '../components/ui'
 
 export function Menu() {
   const nav = useNavigate()
+  // /menu?t=3 = dine-in at table 3 (picked on the floor); no t = take-away.
+  const [params] = useSearchParams()
+  const tableNumber = Number(params.get('t') ?? '0') || 0
   const { data, loading, error } = useQuery<MenuItem[]>(RESTAURANT_CID, M.menu, undefined, decodeMenu)
   const [qty, setQty] = useState<Record<string, number>>({})
   const [placing, setPlacing] = useState(false)
@@ -25,7 +28,7 @@ export function Menu() {
   async function order() {
     setPlacing(true); setErr(undefined)
     try {
-      const id = await placeOrder(lines.map((l) => ({ id: l.item.id, qty: l.qty })))
+      const id = await placeOrder(lines.map((l) => ({ id: l.item.id, qty: l.qty })), tableNumber)
       setQty({})
       nav('/orders', { state: { placed: id.toString() } })
     } catch (e) {
@@ -42,6 +45,13 @@ export function Menu() {
   return (
     <div className="pb-28">
       <h1 className="font-display text-4xl font-semibold">Tonight's menu</h1>
+      <p className="mt-2 text-sm text-ink-soft">
+        {tableNumber > 0 ? (
+          <>Ordering for <b className="text-ink">table {tableNumber}</b> — the table is claimed the moment the order lands. <Link className="text-[var(--color-chili)] hover:underline" to="/menu">Switch to take-away</Link></>
+        ) : (
+          <>Take-away order — or <Link className="text-[var(--color-chili)] hover:underline" to="/">pick a table on the floor</Link> to dine in.</>
+        )}
+      </p>
       <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {menu.map((m) => {
           const n = qty[m.id.toString()] ?? 0

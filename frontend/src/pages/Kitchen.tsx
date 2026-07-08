@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
 import { useQuery, useUpdate, useMediaUpload } from '@thebes/sdk'
 import {
-  RESTAURANT_CID, M, decodeMenu, decodeOrders, addMenuItem, setItemAvailable, advanceOrder, seedDemo,
-  type MenuItem, type OrderRow,
+  RESTAURANT_CID, M, decodeMenu, decodeOrders, decodeBookRows, addMenuItem, setItemAvailable,
+  advanceOrder, seedDemo, addTable, seatReservation, completeReservation, cancelReservation,
+  type MenuItem, type OrderRow, type ReservationRow,
 } from '../lib/restaurant-api'
 import { MEDIA_CID, fmtE8s, relTime } from '../lib/config'
 import { MediaImage } from '../components/MediaImage'
@@ -110,7 +111,9 @@ export function Kitchen() {
         </div>
       </section>
 
-      <section>
+      <section className="space-y-8">
+        <FloorDesk />
+        <div>
         <h2 className="font-display text-xl font-semibold">Order queue</h2>
         {queue.loading ? <div className="mt-4"><Spinner /></div> : queue.error ? <div className="mt-4"><ErrorNote message={queue.error} /></div> : (
           <ul className="mt-4 space-y-3">
@@ -127,7 +130,72 @@ export function Kitchen() {
             {queue.data?.length === 0 && <p className="text-sm text-ink-soft">No open orders. (Kitchen view is owner/staff-only.)</p>}
           </ul>
         )}
+        </div>
       </section>
+    </div>
+  )
+}
+
+/** Floor desk: number new tables onto the floor, and work today's book —
+ *  seat arriving parties, close no-shows, cancel on request. */
+function FloorDesk() {
+  const book = useQuery<ReservationRow[]>(RESTAURANT_CID, M.book, undefined, decodeBookRows)
+  const [num, setNum] = useState('')
+  const [seats, setSeats] = useState('4')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string>()
+
+  const run = async (fn: () => Promise<unknown>) => {
+    setBusy(true)
+    setErr(undefined)
+    try { await fn(); book.refetch() } catch (e) { setErr(e instanceof Error ? e.message : String(e)) } finally { setBusy(false) }
+  }
+
+  const off = (r: ReservationRow) => BigInt(Date.now()) * 1_000_000n - r.nowNs
+  const clock = (ns: bigint, r: ReservationRow) =>
+    new Date(Number((ns + off(r)) / 1_000_000n)).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+
+  return (
+    <div className="card p-4">
+      <h2 className="font-display text-xl font-semibold">The floor desk</h2>
+      <p className="mt-1 text-sm text-ink-soft">Number a new table onto the floor; work today's reservation book.</p>
+      <div className="mt-3 flex flex-wrap items-end gap-2">
+        <label className="block text-sm">
+          <span className="mb-1 block text-xs font-medium text-ink-soft">Table #</span>
+          <input className="inp w-20 nums" inputMode="numeric" value={num} onChange={(e) => setNum(e.target.value)} placeholder="7" />
+        </label>
+        <label className="block text-sm">
+          <span className="mb-1 block text-xs font-medium text-ink-soft">Seats</span>
+          <input className="inp w-20 nums" inputMode="numeric" value={seats} onChange={(e) => setSeats(e.target.value)} />
+        </label>
+        <Button onClick={() => run(() => addTable(Number(num), Number(seats)))} disabled={busy || !num || !seats}>
+          Add table
+        </Button>
+      </div>
+      {err && <div className="mt-3"><ErrorNote message={err} /></div>}
+
+      <h3 className="font-display mt-5 text-lg font-semibold">The book</h3>
+      {book.loading ? <div className="mt-2"><Spinner /></div> : (book.data ?? []).length === 0 ? (
+        <p className="mt-2 text-sm text-ink-soft">No live bookings.</p>
+      ) : (
+        <ul className="mt-2 divide-y divide-[var(--color-line)]">
+          {(book.data ?? []).map((r) => (
+            <li key={r.id.toString()} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+              <span>
+                <b>{r.guestName || 'Guest'}</b> · table {r.tableNumber.toString()} · party {r.partySize.toString()}
+                <span className="text-ink-soft nums"> · {clock(r.startNs, r)}</span>
+                {r.status === 'seated' && <span className="ml-1 text-[var(--color-chili-ink)]">(seated)</span>}
+              </span>
+              <span className="flex gap-1.5">
+                {r.status === 'booked' && <Button className="px-2.5 py-1 text-xs" onClick={() => run(() => seatReservation(r.id))} disabled={busy}>Seat</Button>}
+                {r.status === 'booked' && <Button variant="ghost" className="px-2.5 py-1 text-xs" onClick={() => run(() => completeReservation(r.id, false))} disabled={busy}>No-show</Button>}
+                {r.status === 'seated' && <Button className="px-2.5 py-1 text-xs" onClick={() => run(() => completeReservation(r.id, true))} disabled={busy}>Done</Button>}
+                {r.status === 'booked' && <Button variant="ghost" className="px-2.5 py-1 text-xs" onClick={() => run(() => cancelReservation(r.id))} disabled={busy}>Cancel</Button>}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
