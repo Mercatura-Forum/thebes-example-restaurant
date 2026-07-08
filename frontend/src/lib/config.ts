@@ -10,7 +10,7 @@ export const RESTAURANT_CID: number =
   (typeof window !== 'undefined' && window.RESTAURANT_CID) || 118949186870210
 
 export const MEDIA_CID: number =
-  (typeof window !== 'undefined' && window.MEDIA_CID) || 246317196347499
+  (typeof window !== 'undefined' && window.MEDIA_CID) || 199651578293719
 
 /** Token has 8 decimals (e8s). Format a base-unit price. */
 export function fmtE8s(e8s: bigint | number): string {
