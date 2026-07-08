@@ -40,11 +40,11 @@ export function ErrorNote({ message }: { message: string }) {
 
 const STAGES = ['pending', 'preparing', 'ready', 'delivered'] as const
 export function StatusPill({ status }: { status: string }) {
-  const at = Math.max(0, STAGES.indexOf(status as (typeof STAGES)[number]))
-  const done = status === 'delivered'
+  const at = STAGES.indexOf(status as (typeof STAGES)[number])
+  const quiet = status === 'delivered' || status === 'cancelled' || status === 'completed' || status === 'noshow'
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${done ? 'bg-[var(--color-ink)]/8 text-ink-soft' : 'bg-[var(--color-chili)]/10 text-[var(--color-chili-ink)]'}`}>
-      <span className="nums">{at + 1}/4</span> {status}
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${quiet ? 'bg-[var(--color-ink)]/8 text-ink-soft' : 'bg-[var(--color-chili)]/10 text-[var(--color-chili-ink)]'}`}>
+      {at >= 0 && <span className="nums">{at + 1}/4</span>} {status}
     </span>
   )
 }

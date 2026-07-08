@@ -2,7 +2,8 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { SignOutChip } from './MemphisGate'
 
 const tabs = [
-  { to: '/', label: 'Menu', end: true },
+  { to: '/', label: 'The floor', end: true },
+  { to: '/menu', label: 'Menu' },
   { to: '/orders', label: 'My orders' },
   { to: '/kitchen', label: 'Kitchen' },
 ]
