@@ -1,10 +1,18 @@
 # thebes-example-restaurant
 
 An on-chain restaurant built on [Thebes Protocol](https://github.com/Mercatura-Forum/Thebes-Protocol-):
-a Motoko backend that holds the menu, customer orders, and per-order invoices,
-and a React frontend served as certified assets. It demonstrates the full shape
-of a Thebes application — passkey sign-in, controller-gated admin, a live kitchen
-view, and threshold-signed on-chain state — in one self-contained example.
+a Motoko backend that holds the menu, the dining-room floor, reservations,
+orders and invoices, and a React frontend whose home page **is the live floor**
+— every table drawn from chain state, arrangeable by the kitchen on a real
+floor plan.
+
+The property this example proves is **single allocation under time**. A dining
+table is scarce in two dimensions — right now (one active order at a time) and
+across time (no two overlapping reservations) — and, on the plan, in space (no
+two tables on the same cells). Every booking, seating and placement is validated
+on-chain, and the public oracle (`invariantReportView` / `floorSealView`)
+recomputes all the allocation laws on demand; an empty report is the proof the
+floor can never be double-allocated.
 
 ## Architecture
 
@@ -31,13 +39,17 @@ deploy time (see [Deploy](#deploy)).
 
 | Method | Kind | Purpose |
 | --- | --- | --- |
-| `getMenu` / `menuView` | query | Browse the menu. |
-| `seedDemo` | update | Populate a demo menu (admin). |
-| `addMenuItem` / `updateMenuPrice` / `setItemAvailable` / `setMenuItemPhoto` | update | Menu management (admin). |
-| `placeOrderFlatOrTrap` | update | Place an order; traps on any guard failure so the client never silently ignores an error. An invoice is issued per order. |
-| `myOrdersView` / `myInvoicesView` | query | The caller's orders and invoices. |
-| `kitchenView` / `getOpenOrders` | query | Live kitchen queue. |
-| `startPreparingOrder` / `markOrderReady` / `markDelivered` | update | Advance an order through its lifecycle (admin). |
+| `getMenu` / `menuView` | query | Browse the menu (photos live in the media contract; the app stores pointers). |
+| `seedDemo` | update | Populate a demo menu **and floor** — six numbered tables. |
+| `addMenuItem` / `updateMenuPrice` / `setItemAvailable` / `setMenuItemPhoto` | update | Menu management (kitchen). |
+| `addTable` / `setTableSeats` / `retireTable` / `setTablePosition` | update | The floor: numbered tables, resize, retire-when-free, and grid placement with the no-overlap guard. |
+| `reserveTableOrTrap` / `cancelReservation` / `seatReservation` / `completeReservation` | update | Reservations — overlapping windows are rejected on-chain; the kitchen seats, closes and no-shows parties. |
+| `placeOrderFlatOrTrap` / `moveOrderToTable` | update | Orders (table 0 = take-away); a dine-in order claims its table — one active order per table. An invoice is issued per order. |
+| `floorView` | query | The whole floor in one call: derived table status, current order, covering reservation, next booking, grid position. |
+| `myOrdersView` / `myReservationsView` / `myInvoicesView` | query | The caller's orders, bookings and invoices. |
+| `kitchenView` / `reservationsBookView` / `floorEventsView` | query | Kitchen queue, the reservation book, the floor's story. |
+| `startPreparingOrder` / `markOrderReady` / `markDelivered` | update | Advance an order; delivery frees its table (kitchen). |
+| `invariantReportView` / `floorSealView` | query | **The public oracle** — one order per table, zero overlapping bookings, party fits, no floor overlaps. |
 | `claimOwner` / `addAdmin` / `setPaused` | update | Ownership and admin surface (from `thebes-lib`'s `Admin`). |
 
 The token uses 8 decimals (e8s); prices are stored and returned in base units.
