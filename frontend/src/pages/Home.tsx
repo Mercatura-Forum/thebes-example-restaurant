@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@thebes/sdk'
 import {
@@ -15,7 +15,18 @@ export function Home() {
   const floor = useQuery<FloorTable[]>(RESTAURANT_CID, M.floor, undefined, decodeFloor)
   const seal = useQuery<FloorSeal[]>(RESTAURANT_CID, M.seal, undefined, decodeSeal)
   const kitchen = useQuery<boolean>(RESTAURANT_CID, M.amKitchen, undefined, decodeAmKitchen)
-  const s = seal.data?.[0]
+
+  // The poll must never blank the room: refetch() flips `loading` true, and
+  // rendering a spinner there unmounted the floor every five seconds — the
+  // tables replayed their entrance and the page read as "lagging". Render
+  // from the last good snapshot; the spinner exists only before FIRST data.
+  // (Root-caused live: 3 unmounts + 14 animation replays per 13s of polling.)
+  const lastTables = useRef<FloorTable[] | undefined>(undefined)
+  if (floor.data !== undefined) lastTables.current = floor.data
+  const tables = floor.data ?? lastTables.current
+  const lastSeal = useRef<FloorSeal | undefined>(undefined)
+  if (seal.data?.[0] !== undefined) lastSeal.current = seal.data[0]
+  const s = seal.data?.[0] ?? lastSeal.current
 
   // The floor is LIVE — it breathes on its own, not only after your actions.
   useEffect(() => {
@@ -50,12 +61,12 @@ export function Home() {
       </header>
 
       <section className="mx-auto mt-6 max-w-4xl">
-        {floor.loading ? (
-          <div className="flex justify-center py-16"><Spinner label="Setting the room" /></div>
-        ) : floor.error ? (
-          <ErrorNote message={floor.error} />
+        {tables === undefined ? (
+          floor.error
+            ? <ErrorNote message={floor.error} />
+            : <div className="flex justify-center py-16"><Spinner label="Setting the room" /></div>
         ) : (
-          <FloorView tables={floor.data ?? []} isKitchen={kitchen.data ?? false} onChanged={() => { floor.refetch(); seal.refetch() }} />
+          <FloorView tables={tables} isKitchen={kitchen.data ?? false} onChanged={() => { floor.refetch(); seal.refetch() }} />
         )}
       </section>
     </div>
