@@ -1,6 +1,6 @@
 # thebes-example-restaurant
 
-An on-chain restaurant built on [Thebes Protocol](https://github.com/Mercatura-Forum/Thebes-Protocol-):
+An on-chain restaurant built on [Thebes Protocol](https://thebesprotocol.com):
 a Motoko backend that holds the menu, the dining-room floor, reservations,
 orders and invoices, and a React frontend whose home page **is the live floor**
 — every table drawn from chain state, arrangeable by the kitchen on a real
